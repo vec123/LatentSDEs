@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <style>
+        body { font-family: sans-serif; line-height: 1.6; max-width: 800px; margin: auto; padding: 20px; }
+        code { background: #f4f4f4; padding: 2px 5px; border-radius: 3px; }
+        table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+    </style>
+</head>
+<body>
+    <h1>Dynamical Systems as Basis Expansions</h1>
+    <p>We approximate drift <code>f(x)</code> as <code>&sum; &phi;<sub>i</sub>(x) &theta;<sub>i</sub></code>.</p>
+
+    <table>
+        <tr>
+            <th>System</th>
+            <th>Required Basis Functions</th>
+            <th>Complexity</th>
+        </tr>
+        <tr>
+            <td>Linear (OU)</td>
+            <td>{x<sub>1</sub>, x<sub>2</sub>}</td>
+            <td>Low</td>
+        </tr>
+        <tr>
+            <td>Double-Well</td>
+            <td>{x<sub>1</sub>, x<sub>2</sub>, x<sub>1</sub><sup>3</sup>, x<sub>2</sub><sup>3</sup>}</td>
+            <td>Medium</td>
+        </tr>
+        <tr>
+            <td>Van der Pol</td>
+            <td>{x<sub>1</sub>, x<sub>2</sub>, x<sub>1</sub><sup>2</sup>x<sub>2</sub>}</td>
+            <td>High (Non-linear coupling)</td>
+        </tr>
+    </table>
+
+    <h3>Mathematical Formulation</h3>
+    <p>For the Van der Pol oscillator, the drift <code>f(x)</code> is mapped as:</p>
+    <ul>
+        <li><code>f<sub>1</sub>(x) = 1 &middot; x<sub>2</sub></code></li>
+        <li><code>f<sub>2</sub>(x) = &mu; &middot; x<sub>2</sub> - &mu; &middot; (x<sub>1</sub><sup>2</sup>x<sub>2</sub>) - 1 &middot; x<sub>1</sub></code></li>
+    </ul>
+    where we choose <code>&mu; = 1.0</code>. 
+    This illustrates how even simple polynomial basis functions can capture complex dynamics
+     when combined appropriately.
+    <p>This demonstrates how non-linear dynamics emerge from simple linear combinations of expanded state-space features.</p>
+</body>
+</html>
