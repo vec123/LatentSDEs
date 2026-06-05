@@ -5,7 +5,8 @@ from src.sde.tests.plot_helper import save_fit_plot
 from src.sde.tests.data_helper import generate_data
 from src.sde.GaussianPaths.means.nn_mean import NNMeanModel
 
-def train_nn(model, t, y, epochs=500):
+
+def train_nn(model, t, y, epochs=100):
     optimizer = optax.adam(1e-3) # Lower learning rate for stability
     opt_state = optimizer.init(model.params)
     
@@ -26,9 +27,9 @@ def train_nn(model, t, y, epochs=500):
             print(f"Epoch {epoch}, Loss: {loss:.4f}")
     return model
 
-trajs = generate_data()
+trajs, ts = generate_data()
 t, y = trajs[0]
-model = NNMeanModel(t, y, in_dim=1, out_dim=1, hidden_sizes=[32, 32])
+model = NNMeanModel(in_dim=1, out_dim=1, hidden_sizes=[32, 32])
 model = train_nn(model, t, y)
 print("NN Training complete.")
 save_fit_plot(model, t, y, "nn_fit.png")

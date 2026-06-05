@@ -2,7 +2,18 @@
 import jax.numpy as jnp
 import jax.numpy as jnp
 
-def matern_52_kernel(t1, t2, length_scale=1.0, variance=1.0):
+
+def kumaraswamy_warping(t, T, alpha, beta):
+    # Normalize t to [0, 1] for the warping function
+    t_norm = t / T
+    return 1 - (1 - t_norm**alpha)**beta
+
+def matern_52_kernel(t1, t2, length_scale, sigma):
+    r = jnp.abs(t1 - t2)
+    sqrt5_r_l = jnp.sqrt(5) * r / length_scale
+    return sigma * (1 + sqrt5_r_l + (5 * r**2) / (3 * length_scale**2)) * jnp.exp(-sqrt5_r_l)
+
+def matern_52_kernel_(t1, t2, length_scale=1.0, variance=1.0):
     """
     Computes the Matern 5/2 kernel between two time points (or arrays).
     

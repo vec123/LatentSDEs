@@ -5,14 +5,14 @@ import jax
 import jax.numpy as jnp
 from diffrax import  diffeqsolve, ODETerm, Tsit5, SaveAt
 
-def generate_data(num_trajectories=5, num_points=40):
-    t = jnp.linspace(0, 4 * jnp.pi, num_points)
+def generate_data(num_trajectories=5, num_points=40, T=10.0):
+    t = jnp.linspace(0, T, num_points)
     trajs = []
     for i in range(num_trajectories):
         # Sine wave with random phase and noise
         y = jnp.sin(t) + jax.random.normal(jax.random.PRNGKey(i), t.shape) * 0.4
         trajs.append((t, y))
-    return trajs
+    return trajs, t
 
 
 def van_der_pol_dynamics(t, y, args):

@@ -28,10 +28,10 @@ def train_on_ensemble(model, trajs, epochs=100):
 
 
 # 1. Generate Ensemble
-trajs = generate_data(num_trajectories=10)
+trajs, t_vals = generate_data(num_trajectories=10)
 
 # 2. Train and Plot NN
-model_nn = NNMeanModel(trajs[0][0], None, 1, 1, [32, 32])
+model_nn = NNMeanModel( 1, 1, [32, 32])
 model_nn = train_on_ensemble(model_nn, trajs) # Use the batch training function
 plot_ensemble(model_nn, trajs, "NN Model Ensemble Fit", "nn_ensemble.png")
 

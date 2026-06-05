@@ -2,7 +2,7 @@ from src.sde.tests.data_helper import generate_data
 from src.sde.tests.plot_helper import save_fit_plot
 from src.sde.GaussianPaths.means.matern_52_mean import MaternMeanModel
 
-trajs = generate_data()
+trajs, t_vals = generate_data()
 t, y = trajs[0]
 
 # Fit

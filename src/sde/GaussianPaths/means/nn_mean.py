@@ -4,16 +4,22 @@ import haiku as hk
 
 from src.sde.GaussianPaths.means.base import BaseMeanModel
 
+
 class NNMeanModel(BaseMeanModel):
-    def __init__(self, time_points, Hm, in_dim, out_dim, hidden_sizes, key=jax.random.PRNGKey(42)):
-        self.Hm = Hm
+    def __init__(self, in_dim, out_dim, hidden_sizes, key=jax.random.PRNGKey(42)):
         self.in_dim = in_dim
         
-        # INCREASED frequency range to cover 4*pi
         def fourier_features(t):
-            # Using 10 frequencies that span the period of the data
-            freqs = jnp.linspace(0.1, 2.0, 10) 
-            return jnp.concatenate([jnp.sin(freqs * t), jnp.cos(freqs * t)], axis=-1)
+            t = jnp.atleast_1d(t) 
+            
+            freqs = jnp.linspace(0.1, 5.0, 10) 
+            
+            features = jnp.concatenate([
+                jnp.sin(freqs[:, None] * t), 
+                jnp.cos(freqs[:, None] * t)
+            ], axis=0).flatten() # Result is (20,)
+            
+            return features
 
         def model_fn(t):
             x = fourier_features(t)
@@ -33,7 +39,17 @@ class NNMeanModel(BaseMeanModel):
         # Initialize with dummy input
         dummy_input = jnp.zeros((1,)) 
         self.params = self.transformed.init(key, dummy_input)
-        
+
     def __call__(self, t):
         return self.apply_fn(self.params, None, jnp.atleast_1d(t))
     
+    def get_dot_mu(self, t):
+
+        def forward(ti):
+            return self.apply_fn(self.params, None, jnp.atleast_1d(ti))
+        
+        return jax.jacobian(forward)(t).squeeze()
+    
+    #def get_dot_mu(self, t):
+    #    # Add this helper so save_fit_plot can call it
+    #    return jax.grad(lambda ti: self.apply_fn(self.params, None, ti).sum())(jnp.atleast_1d(t))

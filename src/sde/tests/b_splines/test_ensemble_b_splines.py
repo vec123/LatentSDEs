@@ -4,7 +4,7 @@ from src.sde.tests.plot_helper import plot_ensemble
 from src.sde.GaussianPaths.means.b_spline_mean import BSplineMeanModel
 
 # 1. Generate Ensemble
-trajs = generate_data(num_trajectories=10)
+trajs, t_vals = generate_data(num_trajectories=10)
 all_t = jnp.concatenate([t for t, y in trajs])
 all_y = jnp.concatenate([y for t, y in trajs])
 
