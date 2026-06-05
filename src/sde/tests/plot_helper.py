@@ -2,6 +2,12 @@ import matplotlib.pyplot as plt
 import jax
 import jax.numpy as jnp
 from src.sde.tests.obstacles import get_obstacle_loss
+import jax
+import numpy as np
+import jax.numpy as jnp
+import optax
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 
 def save_fit_plot(model, t_points, y_target, filename):
     t_dense = jnp.linspace(t_points.min(), t_points.max(), 100)
@@ -39,12 +45,6 @@ def plot_ensemble(model, trajs, title, filename):
     plt.close()
 
 
-import jax
-import numpy as np
-import jax.numpy as jnp
-import optax
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
 
 def plot_and_save_potential(obstacles, file_name="potential_field.png"):
     # 1. Create a grid
@@ -382,7 +382,7 @@ def plot_covar_components_2x2(t_values, cov_matrices, filename = "covar_componen
         plt.close()
         print(f"Saved: {filename}")
 
-def plot_covar_components(t_values, cov_matrices, filename ="covar_components.png"):
+def plot_covar_components_dxd(t_values, cov_matrices, filename ="covar_components.png"):
     dim = cov_matrices.shape[1]
     rows, cols = jnp.triu_indices(dim)
     num_plots = len(rows)

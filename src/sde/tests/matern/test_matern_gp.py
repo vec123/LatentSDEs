@@ -39,8 +39,6 @@ def fit_models(use_covar=True):
     # 3. Handle Covariance
     num_basis = 400
     cov_model = MaternCovariance(D=dim, time_interval=(0.0, T), length_scale= 1, num_basis=num_basis, type="diagonal")
-    
-    # Initialize parameters
     params_R = jax.random.normal(jax.random.PRNGKey(0), (cov_model.dim_R, num_basis + 1)) * 1e-2
     params_L = jax.random.normal(jax.random.PRNGKey(1), (dim, num_basis + 1)) * 0.1 
 
@@ -76,9 +74,9 @@ def fit_models(use_covar=True):
                     return jnp.mean(nll_values)
 
         for i in range(20):
-            loss, grads = jax.value_and_grad(loss_fn)((params_R, params_L))
+            loss, grads = jax.value_and_grad(loss_fn)(params)
             updates, opt_state = optimizer.update(grads, opt_state)
-            params_R, params_L = optax.apply_updates((params_R, params_L), updates)
+            params = optax.apply_updates(params, updates)
             if i % 20 == 0: print(f"Epoch {i}, Loss: {loss:.4f}")
 
     plot_gp_comparison(mean_model, cov_model, t_vals, params_R, params_L, trajs=None, dim=dim)

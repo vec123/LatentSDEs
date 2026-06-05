@@ -72,18 +72,14 @@ def fit_and_plot():
 
     t_eval =  t_support = jnp.linspace(0, T, NUM_EVAL)
     plot_model_path(t_eval, model, file_name=f"paths/model_path_init.png")
+    
     # Use the initial parameters from prefit
     current_params = model.params
     optimizer = optax.adam(0.01)
     opt_state = optimizer.init(current_params)
 
     # Pure loss function: accepts params, returns loss
-    def loss_fn(params, t_points):
-        # 1. Use the 'params' passed as an argument, not 'model.params'
-        # 2. Define a helper to call the model with these specific parameters
-        # def predict(t):
-        #     return model.apply_fn(params, None, t)
-
+    def loss_fn(params):
         model.params = params
         path = jax.vmap(model)(t_eval)
         dot_path = jax.vmap(model.get_dot_mu)(t_eval)

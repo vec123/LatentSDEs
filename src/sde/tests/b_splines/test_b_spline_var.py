@@ -2,7 +2,7 @@ import jax
 import optax
 import jax.numpy as jnp
 from jax.test_util import check_grads
-from src.sde.GaussianPaths.Variances.matern_52_var import MaternCovariance
+from src.sde.GaussianPaths.Variances.b_splaine_var import BSplineCovariance
 from src.sde.tests.gp_ground_truths import get_ground_truth_cov
 from src.sde.tests.plot_helper import plot_covar_components_dxd
 
@@ -33,8 +33,10 @@ def run_tests():
         "params_L":params_L,
         "basis_centers": basis_centers,
         "logit_length_scale": jnp.array(0.0),
-       # "log_alpha": jnp.array(0.0),
-      #  "log_beta": jnp.array(0.0),
+        "log_alpha": jnp.array(0.0),
+        "log_beta": jnp.array(0.0),
+       # "alpha": alpha,
+        #"beta": beta
     }
 
     optimizer = optax.adam(0.001)
@@ -51,7 +53,7 @@ def run_tests():
     
     def loss_fn(params):
         W_R, W_L = params["params_R"], params["params_L"]
-        basis_centers = params["basis_centers"]
+        basis_centers, params["basis_centers"]
       #  alpha,beta =  get_alpha_beta_params(params)
         length_scale = jax.nn.sigmoid(params["logit_length_scale"])
         S_pred = jax.vmap(
@@ -84,10 +86,8 @@ def run_tests():
             )(t_array, W_R, W_L, basis_centers, length_scale, alpha, beta, _sigma_)
             loss = jnp.mean( (S_pred - S_true)**2)
             plot_covar_components_dxd(t_array, S_pred, f"pred_cov_{i}.png")
-            plot_covar_components_dxd(t_array, S_pred-S_true, f"error_{i}.png")
-           
-            param_str = " | ".join([f"{k}: {v.shape if v.ndim > 0 else v:.4f}" for k, v in params.items()])
-            print(f"Epoch {i} | Loss: {loss:.4f} | {param_str}")
+            print("length_scale: ", length_scale, "alpha: ", alpha, "beta: ", beta, "basis_centers: ", basis_centers)
+
 
 if __name__ == "__main__":
     run_tests()
