@@ -35,6 +35,11 @@ def sample_trajectories(t_points, num_trajs=50):
     return trajs
 
 
+def get_ground_truth_mean(t):
+    theta = 0.5 * t
+    return jnp.array([jnp.cos(theta), jnp.sin(theta)])
+
+
 def get_ground_truth_cov(t, mode = "full"):
     
     if mode == "full":

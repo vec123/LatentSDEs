@@ -9,12 +9,12 @@ from src.sde.tests.plot_helper import plot_covar_components_dxd
 from jax import config
 config.update("jax_enable_x64", True)
 
-def run_tests():
-    # 1. Initialization
+def fit_and_plot():
+    #Initialization
     D = 2
     T = 10.0
     NUM_TIMES = 100
-    NUM_BASIS = 100
+    NUM_BASIS = 20
     length_scale = 1
     alpha = 1.0
     beta = 1.0
@@ -38,10 +38,6 @@ def run_tests():
     }
 
     optimizer = optax.adam(0.001)
-   # optimizer = optax.chain(
-   # optax.clip(1.0), #
-   # optax.adam(0.001)
-   # )
     opt_state = optimizer.init(params)
 
     def get_alpha_beta_params(params):
@@ -68,15 +64,14 @@ def run_tests():
         params = optax.apply_updates(params, updates)
         return params, opt_state, loss
     
-    for i in range(2001): # Changed to 21 to ensure the "i % 20 == 0" block runs at end
+    for i in range(2001): 
         params, opt_state, loss = step(params, opt_state)
         
         if i % 100 == 0: 
             print(f"Epoch {i}, Loss: {loss:.4f}")
-            # Use a lambda to pass params to the model during prediction
             W_R, W_L = params["params_R"], params["params_L"]
             basis_centers = params["basis_centers"]
-          #  alpha,beta =  get_alpha_beta_params(params)
+            #alpha,beta =  get_alpha_beta_params(params)
             length_scale = jax.nn.sigmoid(params["logit_length_scale"])
             S_pred = jax.vmap(
                 model.get_cov, 
@@ -90,4 +85,4 @@ def run_tests():
             print(f"Epoch {i} | Loss: {loss:.4f} | {param_str}")
 
 if __name__ == "__main__":
-    run_tests()
+    fit_and_plot()

@@ -22,9 +22,11 @@ def fit_and_plot():
 
     # Parameters to optimize
     NUM_SUPPORT = 50 
-    
+   
     # Init Hm as a straight line between start and end
     Hm_init = start_pos + (end_pos - start_pos) * (jnp.linspace(0, 1, NUM_SUPPORT)[:, None])
+    
+    mean_model = MaternMeanModel(t_support, Hm_init, length_scale=0.1, sigma_f=1.0, T=T)
     Hm_opt = jnp.copy(Hm_init[1:-1]) 
     print(f"Initial Hm shape: {Hm_init.shape}")  # Should be (50, 2)
     print(f"Optimizing Hm shape: {Hm_opt.shape}")  # Should be (48, 2)
