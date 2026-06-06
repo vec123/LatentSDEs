@@ -11,17 +11,53 @@ class HorseshoePosterior:
     def __init__(self, D, tau_0 = 1,  
                  local_shape=2.0, local_rate=1.0,
                  global_shape=0.5, global_rate=1.0):
+        class HorseshoePosterior:
+    def __init__(self, D, tau_0 = 1,  
+                 local_shape=2.0, local_rate=1.0,
+                 global_shape=0.5, global_rate=1.0):
         """
         A Variational Horseshoe Posterior model for sparse feature selection.
-        
-        Hyperparameters for tuning signal sensitivity:
-        - tau_0: Initial guess for the global scale. Higher values permit larger signals.
-        - local_shape: Controls the 'spikiness' of the local prior. 
-                    Set to 0.5 for extreme sparsity; increase to >2.0 to retain smaller signals.
-        - local_rate: Scales the variance of the local distribution. 
-                    Increasing this spreads the prior mass, allowing more parameters to drift from zero.
-        - global_shape: Controls the global shrinkage strength.
-        - global_rate: Adjusts the global shrinkage scale.
+
+        The Horseshoe prior models sparse coefficients by expressing variances as the product 
+        of a global scale parameter (governing overall sparsity) and local scale parameters 
+        (governing individual variable shrinkage). This implementation approximates the half-Cauchy 
+        distributions hierarchically using Gamma and Inverse-Gamma scale mixtures.
+
+        ========================================================================================
+        HYPERPARAMETER TUNING GUIDE
+        ========================================================================================
+
+        1. tau_0 (Global Scale Base Guess)
+        ----------------------------------------------------------------------------------------
+        Acts as a baseline scaling factor for the global shrinkage parameter.
+        * HIGHER values: Relaxes overall shrinkage. It acts as an a priori belief that the 
+          true signal vector contains many non-zero entries or very large signals.
+        * LOWER values: Forces severe, aggressive global shrinkage across all parameters, 
+          demanding much stronger evidence in the data to pull any parameter away from zero.
+
+        2. local_shape & local_rate (Local Scale Hyperparameters)
+        ----------------------------------------------------------------------------------------
+        Governs the local variances ($z_a, z_b$), dictating the behavior of individual features.
+        * Standard Horseshoe equivalence: Achieved when shape = 0.5 and rate = 1.0.
+        * LOWER shape (< 1.0, e.g., 0.5): Creates an infinitely tall "spike" at zero and 
+          extremely heavy tails. This provides the classic "horseshoe" behavior: it ruthlessly 
+          crushes noise to zero while leaving true, large signals completely un-shrunk.
+        * HIGHER shape (> 2.0): Smooths out the spike at zero and thins the tails. The prior 
+          mass behaves more like a normal/Ridge prior. It allows small, weak signals to be 
+          retained/recovered, but at the cost of losing clean, hard-zero sparsity on noise.
+        * Adjusting rate: Lowering the rate shifts the local distribution mass outward, 
+          allowing individual features to grow more easily if the data supports them.
+
+        3. global_shape & global_rate (Global Shrinkage Hyperparameters)
+        ----------------------------------------------------------------------------------------
+        Governs the global variance ($s_a, s_b$), dictating the expected overall sparsity.
+        * Standard Horseshoe equivalence: Achieved when shape = 0.5 and rate = 1.0.
+        * LOWER shape (< 1.0): Pulls the global scale close to zero. This enforces an 
+          assumption of extreme sparsity (e.g., only a few non-zero weights out of hundreds).
+        * HIGHER shape (> 1.0): Allows the global scale to safely grow larger. Use this if 
+          you expect a denser model where a larger percentage of features are active.
+        * HIGHER global_rate: Increases the rate parameter of the global Inverse-Gamma, 
+          which squashes the global scale down closer to zero, amplifying overall shrinkage.
         """
         
         self.D = D
@@ -117,7 +153,9 @@ class HorseshoePosterior:
 # --- Execution ---
 def fit_horseshoe():
     D = 10
-    model = HorseshoePosterior(D, tau_0=1000000)
+    model = HorseshoePosterior(D,  tau_0 = 1000,  
+                 local_shape=2.0, local_rate=1.0,
+                 global_shape=5, global_rate=0.5)
     key = jax.random.PRNGKey(42)
     
     # Dummy data: Sparse signal
