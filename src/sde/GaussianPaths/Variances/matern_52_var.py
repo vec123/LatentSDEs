@@ -5,11 +5,12 @@ from src.models.matern_kernels import kumaraswamy_warping, matern_52_kernel
 from src.sde.GaussianPaths.Variances.base import CovarianceModel
 
 class MaternCovariance(CovarianceModel):
-    def __init__(self, D, time_interval, type='full' ):
+    def __init__(self, D, time_interval, type='full', noise_var = 1e-3 ):
         super().__init__(D, type)
         self.T = time_interval[1]
         self.dim_R = D * (D - 1) // 2
         self.dim_Lambda = D
+        self.noise_var = noise_var
 
     def get_basis_vector(self, t, basis_centers, length_scale, alpha, beta, sigma):
         t_warped = kumaraswamy_warping(t, self.T, alpha, beta)
@@ -29,15 +30,17 @@ class MaternCovariance(CovarianceModel):
         vec_Lambda = jnp.dot(weights_Lambda, phi)
         Lambda_phi = jnp.diag(jax.nn.softplus(vec_Lambda))
         
+        noise_matrix = self.noise_var * jnp.eye(self.D)
+
         if self.type == 'diagonal' or self.D == 1:
-            return Lambda_phi + 1e-6 * jnp.eye(self.D)
+            return Lambda_phi + noise_matrix
         
         vec_R = jnp.dot(weights_R, phi)
         R_phi = expm(self._to_skew_symmetric(vec_R))
         assert R_phi.shape == (self.D, self.D)
         assert Lambda_phi.shape == (self.D, self.D)
         
-        return R_phi @ Lambda_phi @ R_phi.T + 1e-6 * jnp.eye(self.D)
+        return R_phi @ Lambda_phi @ R_phi.T + noise_matrix
       
     def get_dot_cov(self, t, weights_R, weights_Lambda,  basis_centers, length_scale, alpha, beta, sigma):
         def cov_at_t(t_in):

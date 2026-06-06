@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
+from jax.experimental.ode import odeint
 
 def get_ground_truth_gp(t):
     # Mean
@@ -39,6 +40,29 @@ def get_ground_truth_mean(t):
     theta = 0.5 * t
     return jnp.array([jnp.cos(theta), jnp.sin(theta)])
 
+
+def van_der_pol_dynamics(y, t, mu=1.5):
+    # Note: odeint expects dynamics in (y, t) order
+    x1, x2 = y
+    dx1 = x2
+    dx2 = mu * (1 - x1**2) * x2 - x1
+    return jnp.array([dx1, dx2])
+
+def get_vanderpol_ground_truth_mean_fn(t_array, y0=jnp.array([2.0, 0.0])):
+    """
+    Computes the trajectory once and returns a callable function 
+    that interpolates the result for any t.
+    """
+    trajectory = odeint(van_der_pol_dynamics, y0, t_array)
+    
+    # Return a closure that interpolates the precomputed trajectory
+    def mean_fn(t):
+        # Linearly interpolate between steps in the precomputed trajectory
+        return jnp.array([
+            jnp.interp(t, t_array, trajectory[:, 0]),
+            jnp.interp(t, t_array, trajectory[:, 1])
+        ])
+    return mean_fn
 
 def get_ground_truth_cov(t, mode = "full"):
     

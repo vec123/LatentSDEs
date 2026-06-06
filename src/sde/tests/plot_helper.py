@@ -26,15 +26,16 @@ def save_fit_plot(model, t_points, y_target, filename):
     plt.close()
     print(f"Plot saved to {filename}")
 
-def plot_ensemble(model, trajs, title, filename):
+def plot_ensemble(model, trajs, title, filename, eps = 1e-6):
     plt.figure(figsize=(10, 6))
     
     # Plot all trajectories
-    for t, y in trajs:
-        plt.plot(t, y, 'gray', alpha=0.3, label='Ground Truth' if t is trajs[0][0] else "")
+    for i, (t, y) in enumerate(trajs):
+        if i <10:
+            plt.plot(t, y, 'gray', alpha=0.3, label='Ground Truth' if t is trajs[0][0] else "")
     
     # Plot mean
-    t_dense = jnp.linspace(trajs[0][0].min(), trajs[0][0].max(), 100)
+    t_dense = jnp.linspace(trajs[0][0].min()+eps, trajs[0][0].max()-eps, 100)
     # Using list comprehension to bypass vmap/tracer issues for generic model types
     y_pred = jnp.array([model(ti) for ti in t_dense])
     
@@ -207,6 +208,61 @@ def plot_static_path_visualization(mean_model, obstacles, T, file_name="static_p
     plt.close()
     print(f"Static plot saved to {file_name}")
 
+def plot_trajs(trajs, filename="trajs.png"):
+    
+    _, first_y = trajs[0]
+    D = first_y.shape[1] if first_y.ndim > 1 else 1
+    
+    # Setup subplots based on D
+    fig, axes = plt.subplots(D, 1, figsize=(10, 3 * D), squeeze=False)
+    
+    for t_i, y_i in trajs:
+        for d in range(D):
+            # Extract dimension d, handling both 1D and 2D arrays
+            y_d = y_i[:, d] if y_i.ndim > 1 else y_i
+            axes[d, 0].scatter(t_i, y_d, color='gray', alpha=0.7, s=1)
+            axes[d,0].plot(t_i, y_d, color='gray', alpha=0.3)
+            axes[d, 0].set_title(f"Dimension {d+1}")
+            axes[d, 0].grid(True)
+
+    plt.tight_layout()
+    plt.savefig(filename)
+    plt.close()
+    print(f"Static plot saved to {filename}")
+def plot_gp(t_array, mean_fn, cov_fn, filename="gp_definition.png"):
+    # 1. Compute stats across the time array
+    # We vmap to get mean (NUM_TIMES, 2) and covariance (NUM_TIMES, 2, 2)
+    mu_vals = jax.vmap(mean_fn)(t_array)
+    cov_vals = jax.vmap(cov_fn)(t_array)
+    
+    # Extract standard deviations from the diagonal
+    std_vals = jnp.sqrt(jax.vmap(jnp.diag)(cov_vals))
+    
+    # 2. Setup plotting
+    fig, axes = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+    labels = ["x1 (Position)", "x2 (Velocity)"]
+    
+    for i in range(2):
+        # Mean
+        axes[i].plot(t_array, mu_vals[:, i], 'r-', label="GP Mean", lw=2)
+        
+        # 95% Confidence Interval (2*std)
+        axes[i].fill_between(t_array, 
+                             mu_vals[:, i] - 2*std_vals[:, i], 
+                             mu_vals[:, i] + 2*std_vals[:, i], 
+                             color='red', alpha=0.2, label="95% Confidence")
+        
+        axes[i].set_ylabel(labels[i])
+        axes[i].legend()
+        axes[i].grid(True)
+        
+    axes[1].set_xlabel("Time (t)")
+    plt.suptitle("Gaussian Process Definition (Mean & Variance)")
+    plt.tight_layout()
+    plt.savefig(filename)
+    plt.close()
+    print(f"GP definition plot saved to {filename}")
+
 
 def plot_gp_ground_truth(trajs, t_vals, dim=2):
     """
@@ -243,12 +299,11 @@ def plot_gp_ground_truth(trajs, t_vals, dim=2):
     plt.savefig("ground_truth.png")
     print("Ground truth plot saved to ground_truth.png")
 
-def plot_gp_comparison(t_vals, mu_true, S_true, mean_model, cov_model,  W_R, W_L, dim=2, trajs=None,):
+
+def plot_gp_comparison(t_vals, mu_true, S_true, mu_pred, S_pred,  dim=2, trajs=None,filename = "matern_comparison.png"):
     data_dim =dim
     # Evaluate Models
-    mu_pred = jax.vmap(mean_model)(t_vals)
-    S_pred = jax.vmap(lambda t: cov_model.get_cov(t, W_R, W_L, 1.0, 0.2, 1.0))(t_vals)
-    
+
     # 3. Plot
     fig, axes = plt.subplots(1, 4, figsize=(18, 5))
     # Plot Means + Sampled Trajectories
@@ -295,8 +350,8 @@ def plot_gp_comparison(t_vals, mu_true, S_true, mean_model, cov_model,  W_R, W_L
         axes[3].legend()
     
     plt.tight_layout()
-    plt.savefig("matern_comparison.png")
-    print("Comparison plot saved with samples to matern_comparison.png")
+    plt.savefig(filename)
+    print(f"Comparison plot saved with samples to {filename}")
 
 def plot_cov_true_empirical_learned(trajs, t_vals, mu_true, S_true, mean_model, cov_model, W_R, W_L):
     """

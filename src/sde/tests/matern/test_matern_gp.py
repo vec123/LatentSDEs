@@ -1,85 +1,154 @@
 import jax
 import jax.numpy as jnp
 import optax
-from jax.lax.linalg import triangular_solve
 
+from src.sde.GaussianPaths.gaussian_path import GaussianPathSDE
 from src.sde.GaussianPaths.means.matern_52_mean import MaternMeanModel
 from src.sde.GaussianPaths.Variances.matern_52_var import MaternCovariance
-from src.sde.tests.gp_ground_truths import sample_trajectories, plot_gp_comparison
-from src.sde.tests.gp_ground_truths import plot_gp_ground_truth, plot_empirical_vs_true
-from src.sde.tests.data_helper import generate_data
+
+from src.sde.tests.gp_ground_truths import get_ground_truth_cov, get_ground_truth_mean
+from src.sde.tests.plot_helper import plot_covar_components_dxd, plot_trajs, plot_gp_comparison
+from src.sde.tests.plot_helper import plot_gp
+from src.sde.tests.data_helper import generate_vanderpol_data
+from src.sde.tests.gaussian_path.gp_helpers import run_sde_verification
+
+from src.sde.tests.gaussian_path.gp_helpers import run_sde_verification
 
 from jax import config
 config.update("jax_enable_x64", True)
 
-def fit_models(use_covar=True):
-    # 1. Generate Data
-    T = 20.0
-    use_gp_ground_truth = True
-    if use_gp_ground_truth:
-        t_vals = jnp.linspace(0, T, 80)
-        trajs = sample_trajectories(t_vals, num_trajs=100)
-        all_t = jnp.concatenate([t for t, y in trajs])
-        all_y = jnp.concatenate([y for t, y in trajs]) # Expected shape: (N, D)
-        #plot_gp_ground_truth(trajs, t_vals, dim=all_y.shape[1] if all_y.ndim > 1 else 1)
-    else:
-        # 1. Generate Ensemble
-        trajs, t_vals = generate_data(num_trajectories=10, num_points=100, T=T)
-        all_t = jnp.concatenate([t for t, y in trajs])
-        all_y = jnp.concatenate([y for t, y in trajs])
-        all_y = all_y.reshape(-1, 1) # Ensure shape is (N, D) even for 1D data
-        print(f"Generated data with shape: {all_y.shape}")
 
-    dim = all_y.shape[1] if all_y.ndim > 1 else 1
-    print(f"Fitting GP for dimension: {dim}")
-
-    # 2. Fit Mean Model
-    mean_model = MaternMeanModel(all_t, all_y, length_scale=0.5, sigma_f=1.0, T=T, alpha=1.0, beta=1.0)
-    
-    # 3. Handle Covariance
-    num_basis = 400
-    cov_model = MaternCovariance(D=dim, time_interval=(0.0, T), length_scale= 1, num_basis=num_basis, type="diagonal")
-    params_R = jax.random.normal(jax.random.PRNGKey(0), (cov_model.dim_R, num_basis + 1)) * 1e-2
-    params_L = jax.random.normal(jax.random.PRNGKey(1), (dim, num_basis + 1)) * 0.1 
-
-    optimizer = optax.adam(1e-2)
-    opt_state = optimizer.init((params_R, params_L))
-    
-    if use_covar:
-        mu_pred = jax.vmap(mean_model)(all_t)
-        residuals = (all_y - mu_pred)
-
-        def loss_fn(params):
-                    W_R, W_L = params
-                    
-                    # 1. Ensure S_all is (N, D, D)
-                    S_all = jax.vmap(lambda t: cov_model.get_cov(t, W_R, W_L, 1.0, 2.0, 1.0))(all_t)
-                    
-                    # 2. Ensure residuals is (N, D, 1) to act as column vectors
-                    # This makes r=(D, 1), which fits the solve(a=(D,D), b=(D,1)) requirement
-                    residuals_col = residuals[:, :, jnp.newaxis] 
-                    
-                    def nll_per_point(S, r):
-                        # S is (D, D), r is (D, 1)
-                        inv_S_r = jax.scipy.linalg.solve(S, r, assume_a='pos')
-                        quad = jnp.dot(r.T, inv_S_r)
-                        
-                        L = jax.scipy.linalg.cholesky(S, lower=True)
-                        log_det = 2.0 * jnp.sum(jnp.log(jnp.diag(L)))
-                        
-                        return log_det + quad.squeeze() # Squeeze to return scalar
-
-                    # Now vmap maps over the first dimension (N) of both S_all and residuals_col
-                    nll_values = jax.vmap(nll_per_point)(S_all, residuals_col)
-                    return jnp.mean(nll_values)
-
-        for i in range(20):
-            loss, grads = jax.value_and_grad(loss_fn)(params)
-            updates, opt_state = optimizer.update(grads, opt_state)
-            params = optax.apply_updates(params, updates)
-            if i % 20 == 0: print(f"Epoch {i}, Loss: {loss:.4f}")
-
-    plot_gp_comparison(mean_model, cov_model, t_vals, params_R, params_L, trajs=None, dim=dim)
-    plot_empirical_vs_true(trajs, t_vals, params_R, params_L, mean_model, cov_model)
 if __name__ == "__main__":
-    fit_models()
+    D = 2
+    T = 20.0 
+    eps = 1e-6
+    NUM_TIMES = 50
+    NUM_BASIS = 40 
+    t_array = jnp.linspace(0, T, NUM_TIMES)
+
+    mean_traj = generate_vanderpol_data(num_trajectories=1,T =T, num_points=NUM_TIMES, noise_scale = 0.0)
+    plot_trajs(mean_traj, filename="mean_vanderpol_traj")
+    t_eval, full_traj = mean_traj[0]
+    
+    dt = t_array[1] - t_array[0]
+    x2_approx = jnp.gradient(full_traj, dt)
+    def vdp_mean_fn(t):
+        return jnp.array([
+            jnp.interp(t, t_eval, full_traj[:, 0]), 
+            jnp.interp(t, t_eval, full_traj[:, 1])  
+        ])
+
+    mu_true = jax.vmap(vdp_mean_fn)(t_array) 
+    S_true = jax.vmap(get_ground_truth_cov)(t_array)     
+    plot_gp(t_array,vdp_mean_fn, get_ground_truth_cov, filename ="vanderpol_gp.png" )
+    def G_fn(t):
+        return jnp.array([[0.1, 0.0], [0.1, 0.1]])                   
+    sde_bridge_true = GaussianPathSDE(
+        mean_fn=vdp_mean_fn,
+        dmean_dt_fn=lambda t: jax.jacobian(vdp_mean_fn)(t),
+        Sigma_fn=get_ground_truth_cov,
+        dSigma_dt_fn=lambda t: jax.jacobian(get_ground_truth_cov)(t),
+        G_fn=G_fn
+    )
+
+    key = jax.random.PRNGKey(42)
+    ground_truth_trajs = sde_bridge_true.sample_trajectories(num_trajectories=100, t_eval= t_eval, key=key)
+    plot_trajs(ground_truth_trajs, filename="simulated_ground_truth_vanderpol_traj")
+
+    all_t = jnp.concatenate([t for t, y in ground_truth_trajs])
+    all_y = jnp.concatenate([y for t, y in ground_truth_trajs])
+    mean_model = MaternMeanModel(all_t, all_y, length_scale=1, sigma_f=1.0, noise_var=1e-3)
+    var_model = MaternCovariance(
+        D=D, time_interval=(0.0, T),
+        type="full", 
+        noise_var=1e-3)
+    basis_centers = jnp.linspace(0, T, NUM_BASIS)
+    params_R = jax.random.normal(jax.random.PRNGKey(0), (var_model.dim_R, NUM_BASIS + 1)) * 1e-2
+    params_L = jax.random.normal(jax.random.PRNGKey(1), (D, NUM_BASIS + 1)) * 0.1
+    alpha, beta, _sigma_ = 1.0, 1.0, 1.0
+
+    params ={
+        "params_R": params_R,
+        "params_L": params_L,
+        "basis_centers": basis_centers,
+        "logit_length_scale": jnp.array(0.0),
+        }
+    
+    optimizer = optax.adam(0.1)
+    opt_state = optimizer.init(params)
+
+    def compute_loss(params, ground_truth_trajs, mean_model):
+        W_R, W_L = params["params_R"], params["params_L"]
+        basis_centers = params["basis_centers"]
+        length_scale = jax.nn.sigmoid(params["logit_length_scale"])
+        
+        def Sigma_fn(t):
+            return var_model.get_cov(t, W_R, W_L, basis_centers, length_scale, alpha, beta, _sigma_)
+        H = jnp.array([[1.0, 0.0]])
+        
+        def logpdf_full(y, mu, sig):
+            mu_obs = H @ mu
+            sig_obs = H @ sig @ H.T
+            eps = 1e-6
+            return -0.5 * (jnp.log(sig_obs[0, 0] + eps) + 
+                        (y - mu_obs[0])**2 / (sig_obs[0, 0] + eps) + 
+                        jnp.log(2 * jnp.pi))
+
+        total_loss = 0.0
+        for t_data, y_data in ground_truth_trajs:
+            mu_t = jax.vmap(mean_model)(t_data)
+            Sigma_t = jax.vmap(Sigma_fn)(t_data)
+          
+            loss = jax.vmap(logpdf_full)(y_data, mu_t, Sigma_t)
+            total_loss += jnp.sum(loss)
+                    
+        return -total_loss
+    
+    @jax.jit(static_argnames=['mean_model'])
+    def train_step(params, opt_state, trajs, mean_model):
+        loss, grads = jax.value_and_grad(compute_loss)(params, trajs, mean_model)
+        updates, opt_state = optimizer.update(grads, opt_state)
+        params = optax.apply_updates(params, updates)
+        return params, opt_state, loss
+
+    for step in range(1000):
+        params, opt_state, loss = train_step(params, opt_state, ground_truth_trajs, mean_model)
+        if step % 100 == 0:
+            print(f"Step {step}, Loss: {loss:.4f}")
+
+            W_R, W_L = params["params_R"], params["params_L"]
+            basis_centers =params["basis_centers"]
+            length_scale = jax.nn.sigmoid(params["logit_length_scale"])
+            mu_pred = jax.vmap(mean_model)(t_array)
+            S_pred = jax.vmap(
+                var_model.get_cov, 
+                in_axes=(0, None, None, None, None, None, None, None)
+            )(t_array, W_R, W_L, basis_centers, length_scale, alpha, beta, _sigma_)
+    
+            plot_gp_comparison(t_array, 
+                                mu_true=mu_true,
+                                S_true=S_true,
+                                mu_pred=mu_pred,
+                                S_pred=S_pred,
+                                dim=2, 
+                                trajs=None,
+                                filename =f"gp_comparison_{step}.png")
+           
+            def current_Sigma_fn(t):
+                return var_model.get_cov(t, W_R, W_L, basis_centers, length_scale, alpha, beta, _sigma_)
+            def current_dSigma_dt_fn(t):
+                return jax.jacobian(current_Sigma_fn)(t)
+            
+            # 4. Initialize SDE bridge with these functional closures
+            sde_bridge_approx = GaussianPathSDE(
+                mean_fn=mean_model,
+                dmean_dt_fn=lambda t: jax.jacobian(mean_model)(t),
+                Sigma_fn=current_Sigma_fn,
+                dSigma_dt_fn=current_dSigma_dt_fn,
+                G_fn=G_fn
+            )
+            
+            # 5. Sample and Plot
+            key = jax.random.PRNGKey(42)
+            approximated_trajs = sde_bridge_approx.sample_trajectories(num_trajectories=100, t_eval=t_eval, key=key)
+            plot_trajs(approximated_trajs, filename=f"simulated_approx_vanderpol_traj_{step}.png")

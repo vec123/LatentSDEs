@@ -28,7 +28,7 @@ class MaternMeanModel(BaseMeanModel):
         
         # Precompute the kernel using warped coordinates
         # K_MM: (N, N)
-        K_MM = self._compute_warped_kernel(time_points, time_points)
+        K_MM = self._compute_warped_kernel(time_points, time_points) 
         
         # Solve (K + sigma*I) * W = Hm
         self.weights = jax.scipy.linalg.solve(

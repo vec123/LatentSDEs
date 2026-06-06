@@ -6,15 +6,28 @@ from src.sde.GaussianPaths.Variances.matern_52_var import MaternCovariance
 from src.sde.tests.gp_ground_truths import get_ground_truth_cov
 from src.sde.tests.plot_helper import plot_covar_components_dxd
 
+def get_param_str(params):
+    param_str_list = []
+    for k, v in params.items():
+        if v.ndim > 0:
+            val_str = str(v.shape)
+        else:
+            # Explicitly convert to a Python float before formatting
+            val_str = f"{float(v):.4f}"
+        param_str_list.append(f"{k}: {val_str}")
+
+    param_str = " | ".join(param_str_list)
+    return param_str
+
 from jax import config
 config.update("jax_enable_x64", True)
 
 def fit_and_plot():
     #Initialization
     D = 2
-    T = 10.0
+    T = 20.0
     NUM_TIMES = 100
-    NUM_BASIS = 20
+    NUM_BASIS = 40
     length_scale = 1
     alpha = 1.0
     beta = 1.0
@@ -25,7 +38,7 @@ def fit_and_plot():
     S_true = jax.vmap(get_ground_truth_cov)(t_array)
     plot_covar_components_dxd(t_array, S_true, "test_cov.png")
      
-    model = MaternCovariance(D=D, time_interval=(0.0, T), type="full")
+    model = MaternCovariance(D=D, time_interval=(0.0, T), type="full", noise_var = 1e-3)
     params_R = jax.random.normal(jax.random.PRNGKey(0), (model.dim_R, NUM_BASIS + 1)) * 1e-2
     params_L = jax.random.normal(jax.random.PRNGKey(1), (D, NUM_BASIS + 1)) * 0.1
     params = {
@@ -37,7 +50,7 @@ def fit_and_plot():
       #  "log_beta": jnp.array(0.0),
     }
 
-    optimizer = optax.adam(0.001)
+    optimizer = optax.adam(0.1)
     opt_state = optimizer.init(params)
 
     def get_alpha_beta_params(params):
@@ -81,7 +94,7 @@ def fit_and_plot():
             plot_covar_components_dxd(t_array, S_pred, f"pred_cov_{i}.png")
             plot_covar_components_dxd(t_array, S_pred-S_true, f"error_{i}.png")
            
-            param_str = " | ".join([f"{k}: {v.shape if v.ndim > 0 else v:.4f}" for k, v in params.items()])
+            param_str = get_param_str(params)
             print(f"Epoch {i} | Loss: {loss:.4f} | {param_str}")
 
 if __name__ == "__main__":

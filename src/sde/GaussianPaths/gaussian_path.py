@@ -63,3 +63,41 @@ class GaussianPathSDE:
         A = self.A_fn(t)
         G = self.G_fn(t)
         return A @ sigma + sigma @ A.T + G @ G.T
+    
+    def sample_trajectories(self, num_trajectories, t_eval, key):
+        num_points = len(t_eval)
+        dt = t_eval[1] - t_eval[0]
+        
+        def simulate_one(k):
+            # 1. Sample initial state
+            k, subkey = jax.random.split(k)
+            x = self.get_initial_state(subkey)
+            
+            # 2. Prepare keys for the loop (one for each time step)
+            # We fold_in the index to ensure every step gets a unique, uncorrelated key
+            def step_fn(carry, i):
+                x, k = carry
+                t = t_eval[i-1]
+                k, noise_key = jax.random.split(k)
+                
+                f = self.drift(t, x)
+                g = self.diffusion(t)
+                
+                dW = jax.random.normal(noise_key, x.shape) * jnp.sqrt(dt)
+                x_new = x + f * dt + g @ dW
+                return (x_new, k), x_new
+
+            # Use scan for performance and JIT-compatibility
+            _, path = jax.lax.scan(step_fn, (x, k), jnp.arange(1, num_points))
+            
+            # Prepend initial state
+            return jnp.vstack([x, path])
+
+        keys = jax.random.split(key, num_trajectories)
+        paths = jax.vmap(simulate_one)(keys)
+
+        num_samples, num_steps, D = paths.shape
+        # Convert to a list of (t, y) pairs internally so the rest of your code works
+        paths = [(t_eval, paths[i]) for i in range(num_samples)]
+
+        return paths
