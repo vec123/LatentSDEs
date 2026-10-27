@@ -152,7 +152,9 @@ class LatentSDE(nn.Module):
         """
         t, mu, mask = batch["t"], batch["mu"], batch["mask"]
         x = torch.where(mask > 0, batch["x"], torch.zeros_like(batch["x"]))
-        if self.encoder is None:
+        if "feat" in batch:  # the posterior reads its own inputs (feature values, mask flags); x and mask are the target only
+            feat, feat_mask = batch["feat"], batch["feat_mask"]
+        elif self.encoder is None:
             feat_mask = self._dropped_blocks(mask)
             feat = x * feat_mask
         else:
@@ -182,7 +184,10 @@ class LatentSDE(nn.Module):
         z = m + ((scale @ eps.unsqueeze(-1)).squeeze(-1) if full else (0.5 * scale).exp() * eps)
         mu = mu[None, :, None].expand(S, B, N + Q + 1, -1)
 
-        recon =(self.decoder(z[:, :, :N], mu[:, :, :N]).log_prob(x) * weight).sum((-1, -2)).mean(0)
+        if getattr(self, "l1", False):  # absolute error of the decoder mean instead of the Gaussian log-density (the metric is MAE)
+            recon = (-(self.decoder(z[:, :, :N], mu[:, :, :N]).mean - x).abs() * weight).sum((-1, -2)).mean(0)
+        else:
+            recon =(self.decoder(z[:, :, :N], mu[:, :, :N]).log_prob(x) * weight).sum((-1, -2)).mean(0)
 
         q = slice(N, N + Q)
         z_q, mu_q = z[:, :, q], mu[:, :, q]

@@ -226,6 +226,7 @@ def build_model(cfg: dict, shape, D: int, t) -> LatentSDE:
     n_modes = cfg.get("n_modes", 0)
     dim_z, dim_mu, dim_u = cfg["dim_z"], cfg.get("dim_mu", 0) + n_modes, cfg.get("dim_u", 0)
     frame_encoder, dim_feat = build_frame_encoder(cfg["encoder"], shape, D)
+    dim_feat = cfg.get("dim_feat", dim_feat)  # the posterior reads batch["feat"] (src/latent/model.py), not the D targets
     posterior = build_posterior(cfg.get("posterior", {}), dim_feat, dim_z, dim_mu, t)  # reads mu, not the static w
     # dim_w: a static latent w per trajectory (src/encoders/static.py), appended to mu for drift, diffusion, decoder
     dim_w = cfg.get("dim_w", 0)
